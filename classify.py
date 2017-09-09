@@ -22,7 +22,7 @@ model_names = sorted(name for name in models.__dict__
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
+    parser = argparse.ArgumentParser(description='')
     parser.add_argument('cmd', choices=['train', 'test', 'map', 'locate'])
     parser.add_argument('data', metavar='DIR',
                         help='path to dataset')

@@ -1,3 +1,5 @@
+## Image Classification
+
 Go to [this page](https://github.com/facebook/fb.resnet.torch/blob/master/INSTALL.md#download-the-imagenet-dataset) to prepare ImageNet 1K data.
 
 To test a model on ImageNet validation set:
@@ -22,3 +24,47 @@ To cite
 	year      = {2017},
 }
 ```
+
+## Semantic Image Segmentataion
+
+### Prepare data
+
+The segmentation image data folder is supposed to contain following image lists with names below:
+
+* train_images.txt
+* train_labels.txt
+* val_images.txt
+* val_labels.txt
+* test_images.txt
+
+Each line in the list is a path to an input image or its label map relative to the segmentation folder.
+For example, if the data folder is "/foo/bar" and train_images.txt contains
+```
+leftImg8bit/train/aachen/aachen_000000_000019_leftImg8bit.png
+leftImg8bit/train/aachen/aachen_000001_000019_leftImg8bit.png
+```
+and train_labels.txt contrains
+```
+gtFine/train/aachen/aachen_000000_000019_gtFine_trainIds.png
+gtFine/train/aachen/aachen_000001_000019_gtFine_trainIds.png
+```
+Then the first image path is
+```
+/foo/bar/leftImg8bit/train/aachen/aachen_000000_000019_leftImg8bit.png
+```
+and its label maps is at
+```
+/foo/bar/gtFine/train/aachen/aachen_000000_000019_gtFine_trainIds.png
+```
+
+In validation or testing phase, only val_* or test_images.txt are needed.
+
+### Testing on images
+
+Evaluate models on testing set or any images without ground truth labels
+```
+python3 -u seg.py test -d <data_folder> -c <category_number> --arch drn_d_22
+--resume <model_path> --phase test --batch-size 1
+```
+
+`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number]`.

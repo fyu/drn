@@ -9,9 +9,9 @@ __all__ = ['DRN', 'drn26', 'drn42', 'drn58']
 
 
 model_urls = {
-    'drn26': 'https://tigress-web.princeton.edu/~fy/drn/models/drn26-ddedf421.pth',
-    'drn42': 'https://tigress-web.princeton.edu/~fy/drn/models/drn42-9d336e8c.pth',
-    'drn58': 'https://tigress-web.princeton.edu/~fy/drn/models/drn58-0a53a92c.pth'
+    'drn-c-26': 'https://tigress-web.princeton.edu/~fy/drn/models/drn26-ddedf421.pth',
+    'drn-c-42': 'https://tigress-web.princeton.edu/~fy/drn/models/drn42-9d336e8c.pth',
+    'drn-c-58': 'https://tigress-web.princeton.edu/~fy/drn/models/drn58-0a53a92c.pth'
 }
 
 
@@ -101,19 +101,36 @@ class DRN(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000,
                  channels=(16, 32, 64, 128, 256, 512, 512, 512),
-                 out_map=False, out_middle=False, pool_size=28):
+                 out_map=False, out_middle=False, pool_size=28, arch='D'):
         super(DRN, self).__init__()
         self.inplanes = channels[0]
         self.out_map = out_map
         self.out_dim = channels[-1]
         self.out_middle = out_middle
-        self.conv1 = nn.Conv2d(3, channels[0], kernel_size=7, stride=1, padding=3,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(channels[0])
-        self.relu = nn.ReLU(inplace=True)
+        self.arch = arch
 
-        self.layer1 = self._make_layer(BasicBlock, channels[0], layers[0], stride=1)
-        self.layer2 = self._make_layer(BasicBlock, channels[1], layers[1], stride=2)
+        if arch == 'C':
+            self.conv1 = nn.Conv2d(3, channels[0], kernel_size=7, stride=1,
+                                   padding=3, bias=False)
+            self.bn1 = nn.BatchNorm2d(channels[0])
+            self.relu = nn.ReLU(inplace=True)
+
+            self.layer1 = self._make_layer(
+                BasicBlock, channels[0], layers[0], stride=1)
+            self.layer2 = self._make_layer(
+                BasicBlock, channels[1], layers[1], stride=2)
+        elif arch == 'D':
+            self.layer0 = nn.Sequential(
+                nn.Conv2d(3, channels[0], kernel_size=7, stride=1, padding=3,
+                          bias=False),
+                nn.BatchNorm2d(channels[0]),
+                nn.ReLU(inplace=True)
+            )
+
+            self.layer1 = self._make_conv_layers(
+                channels[0], layers[0], stride=1)
+            self.layer2 = self._make_conv_layers(
+                channels[1], layers[1], stride=2)
 
         self.layer3 = self._make_layer(block, channels[2], layers[2], stride=2)
         self.layer4 = self._make_layer(block, channels[3], layers[3], stride=2)
@@ -122,12 +139,20 @@ class DRN(nn.Module):
         self.layer6 = None if layers[5] == 0 else \
             self._make_layer(block, channels[5], layers[5], dilation=4,
                              new_level=False)
-        self.layer7 = None if layers[6] == 0 else \
-            self._make_layer(BasicBlock, channels[6], layers[6], dilation=2,
-                             new_level=False, residual=False)
-        self.layer8 = None if layers[7] == 0 else \
-            self._make_layer(BasicBlock, channels[7], layers[7], dilation=1,
-                             new_level=False, residual=False)
+
+        if arch == 'C':
+            self.layer7 = None if layers[6] == 0 else \
+                self._make_layer(BasicBlock, channels[6], layers[6], dilation=2,
+                                 new_level=False, residual=False)
+            self.layer8 = None if layers[7] == 0 else \
+                self._make_layer(BasicBlock, channels[7], layers[7], dilation=1,
+                                 new_level=False, residual=False)
+        elif arch == 'D':
+            self.layer7 = None if layers[6] == 0 else \
+                self._make_conv_layers(channels[6], layers[6], dilation=2)
+            self.layer8 = None if layers[7] == 0 else \
+                self._make_conv_layers(channels[7], layers[7], dilation=1)
+
 
         if num_classes > 0:
             self.avgpool = nn.AvgPool2d(pool_size)
@@ -166,12 +191,28 @@ class DRN(nn.Module):
 
         return nn.Sequential(*layers)
 
+    def _make_conv_layers(self, channels, convs, stride=1, dilation=1):
+        modules = []
+        for i in range(convs):
+            modules.extend([
+                nn.Conv2d(self.inplanes, channels, kernel_size=3,
+                          stride=stride if i == 0 else 1,
+                          padding=dilation, bias=False, dilation=dilation),
+                nn.BatchNorm2d(channels),
+                nn.ReLU(inplace=True)])
+            self.inplanes = channels
+        return nn.Sequential(*modules)
+
     def forward(self, x):
         y = list()
 
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
+        if self.arch == 'C':
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu(x)
+        elif self.arch == 'D':
+            x = self.layer0(x)
+
         x = self.layer1(x)
         y.append(x)
         x = self.layer2(x)
@@ -211,22 +252,50 @@ class DRN(nn.Module):
             return x
 
 
-def drn26(pretrained=False, **kwargs):
-    model = DRN(BasicBlock, [1, 1, 2, 2, 2, 2, 1, 1], **kwargs)
+def drn_c_26(pretrained=False, **kwargs):
+    model = DRN(BasicBlock, [1, 1, 2, 2, 2, 2, 1, 1], arch='C', **kwargs)
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['drn26']))
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-c-26']))
     return model
 
 
-def drn42(pretrained=False, **kwargs):
-    model = DRN(BasicBlock, [1, 1, 3, 4, 6, 3, 1, 1], **kwargs)
+def drn_c_42(pretrained=False, **kwargs):
+    model = DRN(BasicBlock, [1, 1, 3, 4, 6, 3, 1, 1], arch='C', **kwargs)
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['drn42']))
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-c-42']))
     return model
 
 
-def drn58(pretrained=False, **kwargs):
-    model = DRN(Bottleneck, [1, 1, 3, 4, 6, 3, 1, 1], **kwargs)
+def drn_c_58(pretrained=False, **kwargs):
+    model = DRN(Bottleneck, [1, 1, 3, 4, 6, 3, 1, 1], arch='C', **kwargs)
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['drn58']))
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-c-58']))
+    return model
+
+
+def drn_d_22(pretrained=False, **kwargs):
+    model = DRN(BasicBlock, [1, 1, 2, 2, 2, 2, 1, 1], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-22']))
+    return model
+
+
+def drn_d_38(pretrained=False, **kwargs):
+    model = DRN(BasicBlock, [1, 1, 3, 4, 6, 3, 1, 1], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-38']))
+    return model
+
+
+def drn_d_54(pretrained=False, **kwargs):
+    model = DRN(Bottleneck, [1, 1, 3, 4, 6, 3, 1, 1], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-54']))
+    return model
+
+
+def drn_d_105(pretrained=False, **kwargs):
+    model = DRN(Bottleneck, [1, 1, 3, 4, 23, 3, 1, 1], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-105']))
     return model
