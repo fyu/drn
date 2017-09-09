@@ -68,4 +68,4 @@ python3 -u seg.py test -d <data_folder> -c <category_number> --arch drn_d_22
 --resume <model_path> --phase test --batch-size 1
 ```
 
-`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number]`.
+`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number)`.
