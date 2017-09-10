@@ -58,7 +58,7 @@ and its label map is at
 /foo/bar/gtFine/train/aachen/aachen_000000_000019_gtFine_trainIds.png
 ```
 
-In validation or testing phase, only val_* or test_images.txt are needed.
+In training phase, both train_* and val_* are assumed to be in the data folder. In validation phase, only val_images.txt and val_labels.txt are needed. In testing phase, when there are no available labels, only test_images.txt is needed. `seg.py` has a command line option `--phase` and the corresponding acceptable arguments are `train`, `val`, and `test`.
 
 ### Testing on images
 
