@@ -293,11 +293,7 @@ def train_seg(args):
         if 'state_dict' in pretrained_base:
             pretrained_base = pretrained_base['state_dict']
 
-    if args.scale == 0:
-        single_model = DRNSeg(args.arch, args.classes, pretrained_base)
-    else:
-        single_model = DRNScaleSeg(args.arch, args.classes,
-                                   pretrained_model=pretrained_base)
+    single_model = DRNSeg(args.arch, args.classes, pretrained_base)
     model = torch.nn.DataParallel(single_model).cuda()
     criterion = nn.NLLLoss2d(ignore_index=255)
 
@@ -308,20 +304,23 @@ def train_seg(args):
     info = json.load(open(join(data_dir, 'info.json'), 'r'))
     normalize = transforms.Normalize(mean=info['mean'],
                                      std=info['std'])
+    t = []
+    if args.random_rotate > 0:
+        t.append(transforms.RandomRotate(args.random_rotate))
+    if args.random_scale > 0:
+        t.append(transforms.RandomScale(args.random_scale))
+    t.extend([transforms.RandomCrop(crop_size),
+              transforms.RandomHorizontalFlip(),
+              transforms.ToTensor(),
+              normalize])
     train_loader = torch.utils.data.DataLoader(
-        SegList(data_dir, 'train', transforms.Compose([
-            transforms.RandomCrop(crop_size),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ])),
+        SegList(data_dir, 'train', transforms.Compose(t)),
         batch_size=batch_size, shuffle=True, num_workers=num_workers,
         pin_memory=True
     )
     val_loader = torch.utils.data.DataLoader(
         SegList(data_dir, 'val', transforms.Compose([
             transforms.RandomCrop(crop_size),
-            # transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
         ])),
@@ -553,6 +552,8 @@ def parse_args():
     parser.add_argument('--scale', default=0, type=int)
     parser.add_argument('--load-release', dest='load_rel', default=None)
     parser.add_argument('--phase', default='val')
+    parser.add_argument('--random-scale', default=0, type=float)
+    parser.add_argument('--random-rotate', default=0, type=int)
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 

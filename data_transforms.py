@@ -3,38 +3,94 @@ import pdb
 import random
 
 # import cv2
+import math
 import numpy as np
 from PIL import Image, ImageOps
 import torch
 
 
 class RandomCrop(object):
-    """Crops the given PIL.Image at a random location to have a region of
-    the given size. size can be a tuple (target_height, target_width)
-    or an integer, in which case the target will be of a square shape (size, size)
-    """
-
     def __init__(self, size):
         if isinstance(size, numbers.Number):
             self.size = (int(size), int(size))
         else:
             self.size = size
 
-    def __call__(self, img, label=None, *args):
-        assert label is None or img.size == label.size
+    def __call__(self, image, label, *args):
+        assert label is None or image.size == label.size
 
-        w, h = img.size
-        th, tw = self.size
+        w, h = image.size
+        tw, th = self.size
+        top = bottom = left = right = 0
+        if w < tw:
+            left = (tw - w) // 2
+            right = tw - w - left
+        if h < th:
+            top = (th - h) // 2
+            bottom = th - h - top
+        if left > 0 or right > 0 or top > 0 or bottom > 0:
+            label = pad_image(
+                'constant', label, top, bottom, left, right, value=255)
+            image = pad_image(
+                'reflection', image, top, bottom, left, right)
+        w, h = image.size
         if w == tw and h == th:
-            return (img, *args)
-
+            return (image, *args)
         x1 = random.randint(0, w - tw)
         y1 = random.randint(0, h - th)
-        results = [img.crop((x1, y1, x1 + tw, y1 + th))]
+        results = [image.crop((x1, y1, x1 + tw, y1 + th))]
         if label is not None:
             results.append(label.crop((x1, y1, x1 + tw, y1 + th)))
         results.extend(args)
         return results
+
+
+class RandomScale(object):
+    def __init__(self, scale):
+        if isinstance(scale, numbers.Number):
+            scale = [1 / scale, scale]
+        self.scale = scale
+
+    def __call__(self, image, label):
+        ratio = random.uniform(self.scale[0], self.scale[1])
+        w, h = image.size
+        tw = int(ratio * w)
+        th = int(ratio * h)
+        if ratio == 1:
+            return image, label
+        elif ratio < 1:
+            interpolation = Image.ANTIALIAS
+        else:
+            interpolation = Image.CUBIC
+        return image.resize((tw, th), interpolation), \
+               label.resize((tw, th), Image.NEAREST)
+
+
+class RandomRotate(object):
+    """Crops the given PIL.Image at a random location to have a region of
+    the given size. size can be a tuple (target_height, target_width)
+    or an integer, in which case the target will be of a square shape (size, size)
+    """
+
+    def __init__(self, angle):
+        self.angle = angle
+
+    def __call__(self, image, label=None, *args):
+        assert label is None or image.size == label.size
+
+        w, h = image.size
+        p = max((h, w))
+        angle = random.randint(0, self.angle * 2) - self.angle
+
+        if label is not None:
+            label = pad_image('constant', label, h, h, w, w, value=255)
+            label = label.rotate(angle, resample=Image.NEAREST)
+            label = label.crop((w, h, w + w, h + h))
+
+        image = pad_image('reflection', image, h, h, w, w)
+        image = image.rotate(angle, resample=Image.BILINEAR)
+        image = image.crop((w, h, w + w, h + h))
+        return image, label
 
 
 class RandomHorizontalFlip(object):
@@ -69,6 +125,60 @@ class Normalize(object):
             return image, label
 
 
+def pad_reflection(image, top, bottom, left, right):
+    if top == 0 and bottom == 0 and left == 0 and right == 0:
+        return image
+    h, w = image.shape[:2]
+    next_top = next_bottom = next_left = next_right = 0
+    if top > h - 1:
+        next_top = top - h + 1
+        top = h - 1
+    if bottom > h - 1:
+        next_bottom = bottom - h + 1
+        bottom = h - 1
+    if left > w - 1:
+        next_left = left - w + 1
+        left = w - 1
+    if right > w - 1:
+        next_right = right - w + 1
+        right = w - 1
+    new_shape = list(image.shape)
+    new_shape[0] += top + bottom
+    new_shape[1] += left + right
+    new_image = np.empty(new_shape, dtype=image.dtype)
+    new_image[top:top+h, left:left+w] = image
+    new_image[:top, left:left+w] = image[top:0:-1, :]
+    new_image[top+h:, left:left+w] = image[-1:-bottom-1:-1, :]
+    new_image[:, :left] = new_image[:, left*2:left:-1]
+    new_image[:, left+w:] = new_image[:, -right-1:-right*2-1:-1]
+    return pad_reflection(new_image, next_top, next_bottom,
+                          next_left, next_right)
+
+
+def pad_constant(image, top, bottom, left, right, value):
+    if top == 0 and bottom == 0 and left == 0 and right == 0:
+        return image
+    h, w = image.shape[:2]
+    new_shape = list(image.shape)
+    new_shape[0] += top + bottom
+    new_shape[1] += left + right
+    new_image = np.empty(new_shape, dtype=image.dtype)
+    new_image.fill(value)
+    new_image[top:top+h, left:left+w] = image
+    return new_image
+
+
+def pad_image(mode, image, top, bottom, left, right, value=0):
+    if mode == 'reflection':
+        return Image.fromarray(
+            pad_reflection(np.asarray(image), top, bottom, left, right))
+    elif mode == 'constant':
+        return Image.fromarray(
+            pad_constant(np.asarray(image), top, bottom, left, right, value))
+    else:
+        raise ValueError('Unknown mode {}'.format(mode))
+
+
 class Pad(object):
     """Pads the given PIL.Image on all sides with the given "pad" value"""
 
@@ -81,16 +191,37 @@ class Pad(object):
 
     def __call__(self, image, label=None, *args):
         if label is not None:
-            label = ImageOps.expand(label, border=self.padding, fill=255)
+            label = pad_image(
+                'constant', label,
+                self.padding, self.padding, self.padding, self.padding,
+                value=255)
         if self.fill == -1:
-            image = np.asarray(image)
-            image = cv2.copyMakeBorder(image, self.padding, self.padding,
-                                       self.padding, self.padding,
-                                       cv2.BORDER_REFLECT_101)
-            image = Image.fromarray(image)
-            return (image, label, *args)
+            image = pad_image(
+                'reflection', image,
+                self.padding, self.padding, self.padding, self.padding)
         else:
-            return ImageOps.expand(image, border=self.padding, fill=self.fill), label
+            image = pad_image(
+                'constant', image,
+                self.padding, self.padding, self.padding, self.padding,
+                value=self.fill)
+        return (image, label, *args)
+
+
+class PadImage(object):
+    def __init__(self, padding, fill=0):
+        assert isinstance(padding, numbers.Number)
+        assert isinstance(fill, numbers.Number) or isinstance(fill, str) or \
+               isinstance(fill, tuple)
+        self.padding = padding
+        self.fill = fill
+
+    def __call__(self, image, label=None, *args):
+        if self.fill == -1:
+            image = pad_image_reflection(
+                image, self.padding, self.padding, self.padding, self.padding)
+        else:
+            image = ImageOps.expand(image, border=self.padding, fill=self.fill)
+        return (image, label, *args)
 
 
 class ToTensor(object):
