@@ -38,7 +38,8 @@ The segmentation image data folder is supposed to contain following image lists 
 * test_images.txt
 
 Each line in the list is a path to an input image or its label map relative to the segmentation folder.
-For example, if the data folder is "/foo/bar" and train_images.txt contains
+
+For example, if the data folder is "/foo/bar" and train_images.txt in it contains
 ```
 leftImg8bit/train/aachen/aachen_000000_000019_leftImg8bit.png
 leftImg8bit/train/aachen/aachen_000001_000019_leftImg8bit.png
@@ -48,16 +49,16 @@ and train_labels.txt contrains
 gtFine/train/aachen/aachen_000000_000019_gtFine_trainIds.png
 gtFine/train/aachen/aachen_000001_000019_gtFine_trainIds.png
 ```
-Then the first image path is
+Then the first image path is expected at
 ```
 /foo/bar/leftImg8bit/train/aachen/aachen_000000_000019_leftImg8bit.png
 ```
-and its label maps is at
+and its label map is at
 ```
 /foo/bar/gtFine/train/aachen/aachen_000000_000019_gtFine_trainIds.png
 ```
 
-In validation or testing phase, only val_* or test_images.txt are needed.
+In training phase, both train_* and val_* are assumed to be in the data folder. In validation phase, only val_images.txt and val_labels.txt are needed. In testing phase, when there are no available labels, only test_images.txt is needed. `seg.py` has a command line option `--phase` and the corresponding acceptable arguments are `train`, `val`, and `test`.
 
 ### Testing on images
 
@@ -67,4 +68,4 @@ python3 -u seg.py test -d <data_folder> -c <category_number> --arch drn_d_22
 --resume <model_path> --phase test --batch-size 1
 ```
 
-`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number]`.
+`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number)`.
