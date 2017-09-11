@@ -328,8 +328,8 @@ def train_seg(args):
     best_prec1 = 0
     start_epoch = 0
 
-    if args.pretrained is not None:
-        model.load_state_dict(args.pretrained)
+    if args.pretrained:
+        model.load_state_dict(torch.load(args.pretrained))
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
@@ -482,7 +482,7 @@ def test_seg(args):
     # optionally resume from a checkpoint
     start_epoch = 0
     if args.pretrained:
-        model.load_state_dict(args.pretrained)
+        model.load_state_dict(torch.load(args.pretrained))
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
