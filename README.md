@@ -1,3 +1,25 @@
+## Overview
+
+This code provides various models combining dilated convolutions with residual networks. Our models can achieve better performance with less parameters than ResNet on [image classification](#image-classification) and [semantic segmentation](#semantic-image-segmentataion).
+
+If you find this code useful for your publications, please consider citing
+
+```
+@inproceedings{Yu2017,
+    title     = {Dilated Residual Networks},
+    author    = {Fisher Yu and Vladlen Koltun and Thomas Funkhouser},
+    booktitle = {Computer Vision and Pattern Recognition (CVPR)},
+    year      = {2017},
+}
+
+@inproceedings{Yu2016,
+    title     = {Multi-scale context aggregation by dilated convolutions},
+    author    = {Yu, Fisher and Koltun, Vladlen},
+    booktitle = {International Conference on Learning Representations (ICLR)},
+    year      = {2016}
+}
+```
+
 ## Image Classification
 
 Image classification is meant to be a controlled study to understand the role of high resolution feature maps in image classification and the class activations rising from it. Based on the investigation, we are able to design more efficient networks for learning high-resolution image representation. They have practical usage in semantic image segmentation, as detailed in [image segmentation section](#semantic-image-segmentataion).
@@ -52,24 +74,6 @@ python3 classify.py train --arch drn_c_26 -j 8 <imagenet dir> --epochs 120
 ```
 
 Besides `drn_c_26`, we also provide `drn_c_42` and `drn_c_58`. They are in DRN-C family as described in [Dilated Residual Networks](https://umich.app.box.com/v/drn). DRN-D models are simplified versions of DRN-C. Their code names are `drn_d_22`, `drn_d_38`, `drn_d_54`, and `drn_d_105`.
-
-To cite
-
-```
-@inproceedings{Yu2017,
-    author    = {Fisher Yu and Vladlen Koltun and Thomas Funkhouser},
-    title     = {Dilated Residual Networks},
-    booktitle = {CVPR},
-    year      = {2017},
-}
-
-@inproceedings{Yu2016,
-    title     = {Multi-scale context aggregation by dilated convolutions},
-    author    = {Yu, Fisher and Koltun, Vladlen},
-    booktitle = {International Conference on Learning Representations (ICLR)},
-    year      = {2016}
-}
-```
 
 ## Semantic Image Segmentataion
 
