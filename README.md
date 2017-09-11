@@ -55,6 +55,7 @@ The figure below groups the parameter and error rate comparison based on netwok 
 
 The code is written in Python. Software dependency:
 
+* Python 3
 * Pillow
 * pytorch
 * torchvision
