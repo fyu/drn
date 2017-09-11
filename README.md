@@ -53,7 +53,7 @@ The figure below groups the parameter and error rate comparison based on netwok 
 
 ### Training and Testing
 
-The code is written in Python. Software dependency:
+The code is written in Python using [Pytorch](https://github.com/pytorch/pytorch). I started with code in [torchvision](https://github.com/pytorch/vision). Software dependency:
 
 * Python 3
 * Pillow
