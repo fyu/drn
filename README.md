@@ -24,7 +24,20 @@ Comparison of classification error rate on ImageNet validation set and numbers o
 | DRN-D-105 |  20.6% | 5.5% | 54.8M |
 | ResNet-152 | 22.2% | 6.2% | 60.2M |
 
+The figure below groups the parameter and error rate comparison based on netwok structures.
+
+![comparison](doc/drn_comp.png)
+
+
 ### Training and Testing
+
+The code is written in Python. Software dependency:
+
+* Pillow
+* pytorch
+* torchvision
+
+**Note** If you want to train your own semantic segmentation model, make sure your Pytorch version is greater than [0.2.0](https://github.com/pytorch/pytorch/releases) or includes commit [78020a](https://github.com/pytorch/pytorch/pull/2077/commits/78020a52abb76fcb1c344b3c42fbe8610cc387e4).
 
 Go to [this page](https://github.com/facebook/fb.resnet.torch/blob/master/INSTALL.md#download-the-imagenet-dataset) to prepare ImageNet 1K data.
 
@@ -147,7 +160,7 @@ python3 segment.py test -d <data_folder> -c <category_number> --arch drn_d_22 \
 
 You can download the pretrained DRN models on Cityscapes here: http://go.yf.io/drn-cityscapes-models.
 
-If you want to evaluate a checkpoint from your own training:
+If you want to evaluate a checkpoint from your own training, use `--resume` instead of `--pretrained`:
 ```
 python3 segment.py test -d <data_folder> -c <category_number> --arch drn_d_22 \
     --resume <model_path> --phase test --batch-size 1
