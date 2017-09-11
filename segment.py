@@ -63,10 +63,10 @@ def fill_up_weights(up):
 
 class DRNSeg(nn.Module):
     def __init__(self, model_name, classes, pretrained_model=None,
-                 use_torch_up=False):
+                 pretrained=True, use_torch_up=False):
         super(DRNSeg, self).__init__()
-
-        model = drn.__dict__.get(model_name)(num_classes=1000)
+        model = drn.__dict__.get(model_name)(
+            pretrained=pretrained, num_classes=1000)
         pmodel = nn.DataParallel(model)
         if pretrained_model is not None:
             pmodel.load_state_dict(pretrained_model)
@@ -88,8 +88,6 @@ class DRNSeg(nn.Module):
             fill_up_weights(up)
             up.weight.requires_grad = False
             self.up = up
-        # weights = self.up.weight.data.numpy()
-        # pdb.set_trace()
 
     def forward(self, x):
         x = self.base(x)
@@ -287,17 +285,8 @@ def train_seg(args):
     for k, v in args.__dict__.items():
         print(k, ':', v)
 
-    pretrained_base = None
-    if args.pretrained_base is not None:
-        pretrained_base = torch.load(args.pretrained_base)
-        if 'state_dict' in pretrained_base:
-            pretrained_base = pretrained_base['state_dict']
-
-    if args.scale == 0:
-        single_model = DRNSeg(args.arch, args.classes, pretrained_base)
-    else:
-        single_model = DRNScaleSeg(args.arch, args.classes,
-                                   pretrained_model=pretrained_base)
+    single_model = DRNSeg(args.arch, args.classes, None,
+                          pretrained=True)
     model = torch.nn.DataParallel(single_model).cuda()
     criterion = nn.NLLLoss2d(ignore_index=255)
 
@@ -330,7 +319,6 @@ def train_seg(args):
     )
 
     # define loss function (criterion) and pptimizer
-
     optimizer = torch.optim.SGD(single_model.optim_parameters(),
                                 args.lr,
                                 momentum=args.momentum,
@@ -340,6 +328,8 @@ def train_seg(args):
     best_prec1 = 0
     start_epoch = 0
 
+    if args.pretrained is not None:
+        model.load_state_dict(args.pretrained)
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
@@ -471,11 +461,8 @@ def test_seg(args):
     for k, v in args.__dict__.items():
         print(k, ':', v)
 
-    single_model = DRNSeg(args.arch, args.classes, pretrained_model=None)
-
-    if args.load_rel is not None:
-        weights = torch.load(args.load_rel)
-        single_model.load_state_dict(weights)
+    single_model = DRNSeg(args.arch, args.classes, pretrained_model=None,
+                          pretrained=False)
     model = torch.nn.DataParallel(single_model).cuda()
 
     data_dir = args.data_dir
@@ -494,6 +481,8 @@ def test_seg(args):
 
     # optionally resume from a checkpoint
     start_epoch = 0
+    if args.pretrained is not None:
+        model.load_state_dict(args.pretrained)
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
@@ -506,7 +495,8 @@ def test_seg(args):
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
-    mAP = test(test_loader, model, args.classes, save_vis=True, has_gt=phase != 'test',
+    mAP = test(test_loader, model, args.classes, save_vis=True,
+               has_gt=phase != 'test',
                output_dir='pred_{:03d}'.format(start_epoch))
     print('mAP: ', mAP)
 
@@ -522,11 +512,6 @@ def parse_args():
     parser.add_argument('--arch')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--train-samples', default=16000, type=int)
-    parser.add_argument('--loss', default='l1', type=str)
-    parser.add_argument('--test-batch-size', type=int, default=1000,
-                        metavar='N',
-                        help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
@@ -540,17 +525,12 @@ def parse_args():
                         help='evaluate model on validation set')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
-                        help='how many batches to wait before logging training status')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
-    parser.add_argument('--pretrained-base', dest='pretrained_base',
-                        default=None, metavar='PATH',
+    parser.add_argument('--pretrained', dest='pretrained',
+                        default='', type=str, metavar='PATH',
                         help='use pre-trained model')
     parser.add_argument('-j', '--workers', type=int, default=8)
-    parser.add_argument('--scale', default=0, type=int)
     parser.add_argument('--load-release', dest='load_rel', default=None)
     parser.add_argument('--phase', default='val')
     args = parser.parse_args()

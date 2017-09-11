@@ -8,10 +8,16 @@ import torch.utils.model_zoo as model_zoo
 __all__ = ['DRN', 'drn26', 'drn42', 'drn58']
 
 
+webroot = 'https://tigress-web.princeton.edu/~fy/drn/models/'
+
 model_urls = {
-    'drn-c-26': 'https://tigress-web.princeton.edu/~fy/drn/models/drn26-ddedf421.pth',
-    'drn-c-42': 'https://tigress-web.princeton.edu/~fy/drn/models/drn42-9d336e8c.pth',
-    'drn-c-58': 'https://tigress-web.princeton.edu/~fy/drn/models/drn58-0a53a92c.pth'
+    'drn-c-26': webroot + 'drn_c_26-ddedf421.pth',
+    'drn-c-42': webroot + 'drn_c_42-9d336e8c.pth',
+    'drn-c-58': webroot + 'drn_c_58-0a53a92c.pth',
+    'drn-d-22': webroot + 'drn_d_22-4bd2f8ea.pth',
+    'drn-d-38': webroot + 'drn_d_38-eebb45f0.pth',
+    'drn-d-54': webroot + 'drn_d_54-0e0534ff.pth',
+    'drn-d-105': webroot + 'drn_d_105-12b40979.pth'
 }
 
 
@@ -153,10 +159,8 @@ class DRN(nn.Module):
             self.layer8 = None if layers[7] == 0 else \
                 self._make_conv_layers(channels[7], layers[7], dilation=1)
 
-
         if num_classes > 0:
             self.avgpool = nn.AvgPool2d(pool_size)
-            # self.fc = nn.Linear(self.out_dim, num_classes)
             self.fc = nn.Conv2d(self.out_dim, num_classes, kernel_size=1,
                                 stride=1, padding=0, bias=True)
         for m in self.modules():
@@ -178,7 +182,7 @@ class DRN(nn.Module):
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
-        layers = []
+        layers = list()
         layers.append(block(
             self.inplanes, planes, stride, downsample,
             dilation=(1, 1) if dilation == 1 else (
