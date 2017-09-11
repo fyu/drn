@@ -153,7 +153,7 @@ python3 segment.py train -d <data_folder> -c <category_number> -s 896 \
     --step 100
 ```
 
-`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number)`.
+`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number)`. Invalid pixels can be labeled as 255 and they will be ignored in training and evaluation.
 
 ### Testing
 
