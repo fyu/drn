@@ -287,6 +287,8 @@ def train_seg(args):
 
     single_model = DRNSeg(args.arch, args.classes, None,
                           pretrained=True)
+    if args.pretrained:
+        single_model.load_state_dict(torch.load(args.pretrained))
     model = torch.nn.DataParallel(single_model).cuda()
     criterion = nn.NLLLoss2d(ignore_index=255)
 
@@ -328,8 +330,6 @@ def train_seg(args):
     best_prec1 = 0
     start_epoch = 0
 
-    if args.pretrained:
-        model.load_state_dict(torch.load(args.pretrained))
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
@@ -463,6 +463,8 @@ def test_seg(args):
 
     single_model = DRNSeg(args.arch, args.classes, pretrained_model=None,
                           pretrained=False)
+    if args.pretrained:
+        single_model.load_state_dict(torch.load(args.pretrained))
     model = torch.nn.DataParallel(single_model).cuda()
 
     data_dir = args.data_dir
@@ -481,8 +483,6 @@ def test_seg(args):
 
     # optionally resume from a checkpoint
     start_epoch = 0
-    if args.pretrained:
-        model.load_state_dict(torch.load(args.pretrained))
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
@@ -523,8 +523,6 @@ def parse_args():
     parser.add_argument('-e', '--evaluate', dest='evaluate',
                         action='store_true',
                         help='evaluate model on validation set')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='enables CUDA training')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('--pretrained', dest='pretrained',
@@ -534,7 +532,6 @@ def parse_args():
     parser.add_argument('--load-release', dest='load_rel', default=None)
     parser.add_argument('--phase', default='val')
     args = parser.parse_args()
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
 
     assert args.data_dir is not None
     assert args.classes > 0
