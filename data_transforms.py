@@ -24,7 +24,7 @@ class RandomCrop(object):
         w, h = img.size
         th, tw = self.size
         if w == tw and h == th:
-            return (img, *args)
+            return (img, label, *args)
 
         x1 = random.randint(0, w - tw)
         y1 = random.randint(0, h - th)
