@@ -507,7 +507,7 @@ def parse_args():
     parser.add_argument('cmd', choices=['train', 'test'])
     parser.add_argument('-d', '--data-dir', default=None)
     parser.add_argument('-c', '--classes', default=0, type=int)
-    parser.add_argument('-s', '--crop-size', default=0, type=int)
+    parser.add_argument('-s', '--crop_size', default=512, type=int)
     parser.add_argument('--step', type=int, default=200)
     parser.add_argument('--arch')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
