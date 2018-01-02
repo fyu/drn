@@ -27,7 +27,10 @@ from torch.autograd import Variable
 import drn
 import data_transforms as transforms
 
-from modules import batchnormsync
+try:
+    from modules import batchnormsync
+except ImportError:
+    pass
 
 FORMAT = "[%(asctime)-15s %(filename)s:%(lineno)d %(funcName)s] %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -624,15 +627,6 @@ def test_seg(args):
             transforms.ToTensor(),
             normalize,
         ]), out_name=True)
-    # test_loader = torch.utils.data.DataLoader(
-    #     SegList(data_dir, phase, transforms.Compose([
-    #         transforms.ToTensor(),
-    #         normalize,
-    #     ]), out_name=True),
-    #     batch_size=batch_size, shuffle=False, num_workers=num_workers,
-    #     pin_memory=False
-    # )
-    # scales = [0.5]
     test_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size, shuffle=False, num_workers=num_workers,
@@ -730,6 +724,7 @@ def main():
         train_seg(args)
     elif args.cmd == 'test':
         test_seg(args)
+
 
 if __name__ == '__main__':
     main()
