@@ -89,6 +89,9 @@ Comparison of mIoU on Cityscapes and numbers of parameters.
 | DRN-C-42 | 70.9% | 31.2M |
 | DRN-D-22 | 68.0% | 16.4M |
 | DRN-D-38 | 71.4% | 26.5M |
+| DRN-D-105* | 75.6% | 54.8M |
+
+*trained with poly learning rate, random scaling and rotations.
 
 DRN-D-105 gets 76.3% mIoU on Cityscapes testing set with multi-scale testing, poly learning rate and data augmentation with random rotation and scaling in training. Full results are [here](datasets/cityscapes/drn-d-105.csv).
 
