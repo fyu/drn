@@ -32,7 +32,8 @@ class RandomCrop(object):
                 'reflection', image, top, bottom, left, right)
         w, h = image.size
         if w == tw and h == th:
-            return (image, *args)
+            return (img, label, *args)
+
         x1 = random.randint(0, w - tw)
         y1 = random.randint(0, h - th)
         results = [image.crop((x1, y1, x1 + tw, y1 + th))]
