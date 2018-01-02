@@ -7,7 +7,7 @@ import torch.utils.model_zoo as model_zoo
 BatchNorm = nn.BatchNorm2d
 
 
-__all__ = ['DRN', 'drn26', 'drn42', 'drn58']
+# __all__ = ['DRN', 'drn26', 'drn42', 'drn58']
 
 
 webroot = 'https://tigress-web.princeton.edu/~fy/drn/models/'
@@ -286,10 +286,24 @@ def drn_d_22(pretrained=False, **kwargs):
     return model
 
 
+def drn_d_24(pretrained=False, **kwargs):
+    model = DRN(BasicBlock, [1, 1, 2, 2, 2, 2, 2, 2], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-24']))
+    return model
+
+
 def drn_d_38(pretrained=False, **kwargs):
     model = DRN(BasicBlock, [1, 1, 3, 4, 6, 3, 1, 1], arch='D', **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['drn-d-38']))
+    return model
+
+
+def drn_d_40(pretrained=False, **kwargs):
+    model = DRN(BasicBlock, [1, 1, 3, 4, 6, 3, 2, 2], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-40']))
     return model
 
 
@@ -300,8 +314,22 @@ def drn_d_54(pretrained=False, **kwargs):
     return model
 
 
+def drn_d_56(pretrained=False, **kwargs):
+    model = DRN(Bottleneck, [1, 1, 3, 4, 6, 3, 2, 2], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-56']))
+    return model
+
+
 def drn_d_105(pretrained=False, **kwargs):
     model = DRN(Bottleneck, [1, 1, 3, 4, 23, 3, 1, 1], arch='D', **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['drn-d-105']))
+    return model
+
+
+def drn_d_107(pretrained=False, **kwargs):
+    model = DRN(Bottleneck, [1, 1, 3, 4, 23, 3, 2, 2], arch='D', **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['drn-d-107']))
     return model
