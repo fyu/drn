@@ -5,6 +5,8 @@ import time
 import numpy as np
 import os
 from os.path import exists, split, join, splitext
+
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -47,6 +49,8 @@ def parse_args():
                         metavar='W', help='weight decay (default: 1e-4)')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         metavar='N', help='print frequency (default: 10)')
+    parser.add_argument('--check-freq', default=10, type=int,
+                        metavar='N', help='checkpoint frequency (default: 10)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -63,6 +67,7 @@ def parse_args():
 
 
 def main():
+    print(' '.join(sys.argv))
     args = parse_args()
     print(args)
     if args.cmd == 'train':
@@ -139,14 +144,17 @@ def run_training(args):
         # remember best prec@1 and save checkpoint
         is_best = prec1 > best_prec1
         best_prec1 = max(prec1, best_prec1)
-        checkpoint_path = 'checkpoint_{:03d}.pth.tar'.format(epoch)
+
+        checkpoint_path = 'checkpoint_latest.pth.tar'
         save_checkpoint({
             'epoch': epoch + 1,
             'arch': args.arch,
             'state_dict': model.state_dict(),
             'best_prec1': best_prec1,
         }, is_best, filename=checkpoint_path)
-        shutil.copyfile(checkpoint_path, 'checkpoint_latest.pth.tar')
+        if (epoch + 1) % args.check_freq == 0:
+            history_path = 'checkpoint_{:03d}.pth.tar'.format(epoch + 1)
+            shutil.copyfile(checkpoint_path, history_path)
 
 
 def test_model(args):

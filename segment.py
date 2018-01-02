@@ -3,10 +3,12 @@
 
 import argparse
 import json
+import logging
 import math
 import os
 import pdb
 from os.path import exists, join, split
+import threading
 
 import time
 
@@ -24,6 +26,16 @@ from torch.autograd import Variable
 
 import drn
 import data_transforms as transforms
+
+try:
+    from modules import batchnormsync
+except ImportError:
+    pass
+
+FORMAT = "[%(asctime)-15s %(filename)s:%(lineno)d %(funcName)s] %(message)s"
+logging.basicConfig(format=FORMAT)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 CITYSCAPE_PALLETE = np.asarray([
@@ -139,6 +151,45 @@ class SegList(torch.utils.data.Dataset):
             assert len(self.image_list) == len(self.label_list)
 
 
+class SegListMS(torch.utils.data.Dataset):
+    def __init__(self, data_dir, phase, transforms, scales, list_dir=None):
+        self.list_dir = data_dir if list_dir is None else list_dir
+        self.data_dir = data_dir
+        self.phase = phase
+        self.transforms = transforms
+        self.image_list = None
+        self.label_list = None
+        self.bbox_list = None
+        self.read_lists()
+        self.scales = scales
+
+    def __getitem__(self, index):
+        data = [Image.open(join(self.data_dir, self.image_list[index]))]
+        w, h = data[0].size
+        if self.label_list is not None:
+            data.append(Image.open(join(self.data_dir, self.label_list[index])))
+        # data = list(self.transforms(*data))
+        out_data = list(self.transforms(*data))
+        ms_images = [self.transforms(data[0].resize((int(w * s), int(h * s)),
+                                                    Image.BICUBIC))[0]
+                     for s in self.scales]
+        out_data.append(self.image_list[index])
+        out_data.extend(ms_images)
+        return tuple(out_data)
+
+    def __len__(self):
+        return len(self.image_list)
+
+    def read_lists(self):
+        image_path = join(self.list_dir, self.phase + '_images.txt')
+        label_path = join(self.list_dir, self.phase + '_labels.txt')
+        assert exists(image_path)
+        self.image_list = [line.strip() for line in open(image_path, 'r')]
+        if exists(label_path):
+            self.label_list = [line.strip() for line in open(label_path, 'r')]
+            assert len(self.image_list) == len(self.label_list)
+
+
 def validate(val_loader, model, criterion, eval_score=None, print_freq=10):
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -172,14 +223,14 @@ def validate(val_loader, model, criterion, eval_score=None, print_freq=10):
         end = time.time()
 
         if i % print_freq == 0:
-            print('Test: [{0}/{1}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Score {score.val:.3f} ({score.avg:.3f})'.format(
-                   i, len(val_loader), batch_time=batch_time, loss=losses,
-                   score=score), flush=True)
+            logger.info('Test: [{0}/{1}]\t'
+                        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                        'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                        'Score {score.val:.3f} ({score.avg:.3f})'.format(
+                i, len(val_loader), batch_time=batch_time, loss=losses,
+                score=score))
 
-    print(' * Score {top1.avg:.3f}'.format(top1=score))
+    logger.info(' * Score {top1.avg:.3f}'.format(top1=score))
 
     return score.avg
 
@@ -260,13 +311,13 @@ def train(train_loader, model, criterion, optimizer, epoch,
         end = time.time()
 
         if i % print_freq == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Score {top1.val:.3f} ({top1.avg:.3f})'.format(
-                   epoch, i, len(train_loader), batch_time=batch_time,
-                   data_time=data_time, loss=losses, top1=scores))
+            logger.info('Epoch: [{0}][{1}/{2}]\t'
+                        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                        'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                        'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                        'Score {top1.val:.3f} ({top1.avg:.3f})'.format(
+                epoch, i, len(train_loader), batch_time=batch_time,
+                data_time=data_time, loss=losses, top1=scores))
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
@@ -299,25 +350,28 @@ def train_seg(args):
     info = json.load(open(join(data_dir, 'info.json'), 'r'))
     normalize = transforms.Normalize(mean=info['mean'],
                                      std=info['std'])
+    t = []
+    if args.random_rotate > 0:
+        t.append(transforms.RandomRotate(args.random_rotate))
+    if args.random_scale > 0:
+        t.append(transforms.RandomScale(args.random_scale))
+    t.extend([transforms.RandomCrop(crop_size),
+              transforms.RandomHorizontalFlip(),
+              transforms.ToTensor(),
+              normalize])
     train_loader = torch.utils.data.DataLoader(
-        SegList(data_dir, 'train', transforms.Compose([
-            transforms.RandomCrop(crop_size),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ])),
+        SegList(data_dir, 'train', transforms.Compose(t)),
         batch_size=batch_size, shuffle=True, num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True, drop_last=True
     )
     val_loader = torch.utils.data.DataLoader(
         SegList(data_dir, 'val', transforms.Compose([
             transforms.RandomCrop(crop_size),
-            # transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
         ])),
         batch_size=batch_size, shuffle=False, num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True, drop_last=True
     )
 
     # define loss function (criterion) and pptimizer
@@ -349,7 +403,7 @@ def train_seg(args):
 
     for epoch in range(start_epoch, args.epochs):
         lr = adjust_learning_rate(args, optimizer, epoch)
-        print('Epoch: [{0}]\tlr {1:.06f}'.format(epoch, lr))
+        logger.info('Epoch: [{0}]\tlr {1:.06f}'.format(epoch, lr))
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch,
               eval_score=accuracy)
@@ -373,7 +427,13 @@ def train_seg(args):
 
 def adjust_learning_rate(args, optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // args.step))
+    if args.lr_mode == 'step':
+        lr = args.lr * (0.1 ** (epoch // args.step))
+    elif args.lr_mode == 'poly':
+        lr = args.lr * (1 - epoch / args.epochs) ** 0.9
+    else:
+        raise ValueError('Unknown lr mode {}'.format(args.lr_mode))
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
     return lr
@@ -397,7 +457,7 @@ def save_output_images(predictions, filenames, output_dir):
     # pdb.set_trace()
     for ind in range(len(filenames)):
         im = Image.fromarray(predictions[ind].astype(np.uint8))
-        fn = os.path.join(output_dir, filenames[ind])
+        fn = os.path.join(output_dir, filenames[ind][:-4] + '.png')
         out_dir = split(fn)[0]
         if not exists(out_dir):
             os.makedirs(out_dir)
@@ -439,17 +499,103 @@ def test(eval_data_loader, model, num_classes,
         if has_gt:
             label = label.numpy()
             hist += fast_hist(pred.flatten(), label.flatten(), num_classes)
-            print('===> mAP {mAP:.3f}'.format(
+            logger.info('===> mAP {mAP:.3f}'.format(
                 mAP=round(np.nanmean(per_class_iu(hist)) * 100, 2)))
         end = time.time()
-        print('Eval: [{0}/{1}]\t'
-              'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-              'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-              .format(iter, len(eval_data_loader), batch_time=batch_time,
-                      data_time=data_time))
+        logger.info('Eval: [{0}/{1}]\t'
+                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                    'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                    .format(iter, len(eval_data_loader), batch_time=batch_time,
+                            data_time=data_time))
     if has_gt: #val
         ious = per_class_iu(hist) * 100
-        print(' '.join('{:.03f}'.format(i) for i in ious))
+        logger.info(' '.join('{:.03f}'.format(i) for i in ious))
+        return round(np.nanmean(ious), 2)
+
+
+def resize_4d_tensor(tensor, width, height):
+    tensor_cpu = tensor.cpu().numpy()
+    if tensor.size(2) == height and tensor.size(3) == width:
+        return tensor_cpu
+    out_size = (tensor.size(0), tensor.size(1), height, width)
+    out = np.empty(out_size, dtype=np.float32)
+
+    def resize_one(i, j):
+        out[i, j] = np.array(
+            Image.fromarray(tensor_cpu[i, j]).resize(
+                (width, height), Image.BILINEAR))
+
+    def resize_channel(j):
+        for i in range(tensor.size(0)):
+            out[i, j] = np.array(
+                Image.fromarray(tensor_cpu[i, j]).resize(
+                    (width, height), Image.BILINEAR))
+
+    # workers = [threading.Thread(target=resize_one, args=(i, j))
+    #            for i in range(tensor.size(0)) for j in range(tensor.size(1))]
+
+    workers = [threading.Thread(target=resize_channel, args=(j,))
+               for j in range(tensor.size(1))]
+    for w in workers:
+        w.start()
+    for w in workers:
+        w.join()
+    # for i in range(tensor.size(0)):
+    #     for j in range(tensor.size(1)):
+    #         out[i, j] = np.array(
+    #             Image.fromarray(tensor_cpu[i, j]).resize(
+    #                 (w, h), Image.BILINEAR))
+    # out = tensor.new().resize_(*out.shape).copy_(torch.from_numpy(out))
+    return out
+
+
+def test_ms(eval_data_loader, model, num_classes, scales,
+            output_dir='pred', has_gt=True, save_vis=False):
+    model.eval()
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    end = time.time()
+    hist = np.zeros((num_classes, num_classes))
+    num_scales = len(scales)
+    for iter, input_data in enumerate(eval_data_loader):
+        data_time.update(time.time() - end)
+        if has_gt:
+            name = input_data[2]
+            label = input_data[1]
+        else:
+            name = input_data[1]
+        h, w = input_data[0].size()[2:4]
+        images = [input_data[0]]
+        images.extend(input_data[-num_scales:])
+        # pdb.set_trace()
+        outputs = []
+        for image in images:
+            image_var = Variable(image, requires_grad=False, volatile=True)
+            final = model(image_var)[0]
+            outputs.append(final.data)
+        final = sum([resize_4d_tensor(out, w, h) for out in outputs])
+        # _, pred = torch.max(torch.from_numpy(final), 1)
+        # pred = pred.cpu().numpy()
+        pred = final.argmax(axis=1)
+        batch_time.update(time.time() - end)
+        if save_vis:
+            save_output_images(pred, name, output_dir)
+            save_colorful_images(pred, name, output_dir + '_color',
+                                 CITYSCAPE_PALLETE)
+        if has_gt:
+            label = label.numpy()
+            hist += fast_hist(pred.flatten(), label.flatten(), num_classes)
+            logger.info('===> mAP {mAP:.3f}'.format(
+                mAP=round(np.nanmean(per_class_iu(hist)) * 100, 2)))
+        end = time.time()
+        logger.info('Eval: [{0}/{1}]\t'
+                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                    'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                    .format(iter, len(eval_data_loader), batch_time=batch_time,
+                            data_time=data_time))
+    if has_gt: #val
+        ious = per_class_iu(hist) * 100
+        logger.info(' '.join('{:.03f}'.format(i) for i in ious))
         return round(np.nanmean(ious), 2)
 
 
@@ -470,11 +616,19 @@ def test_seg(args):
     data_dir = args.data_dir
     info = json.load(open(join(data_dir, 'info.json'), 'r'))
     normalize = transforms.Normalize(mean=info['mean'], std=info['std'])
-    test_loader = torch.utils.data.DataLoader(
-        SegList(data_dir, phase, transforms.Compose([
+    scales = [0.5, 0.75, 1.25, 1.5, 1.75]
+    if args.ms:
+        dataset = SegListMS(data_dir, phase, transforms.Compose([
             transforms.ToTensor(),
             normalize,
-        ]), out_name=True),
+        ]), scales)
+    else:
+        dataset = SegList(data_dir, phase, transforms.Compose([
+            transforms.ToTensor(),
+            normalize,
+        ]), out_name=True)
+    test_loader = torch.utils.data.DataLoader(
+        dataset,
         batch_size=batch_size, shuffle=False, num_workers=num_workers,
         pin_memory=False
     )
@@ -485,20 +639,31 @@ def test_seg(args):
     start_epoch = 0
     if args.resume:
         if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
+            logger.info("=> loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume)
             start_epoch = checkpoint['epoch']
             best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
-            print("=> loaded checkpoint '{}' (epoch {})"
+            logger.info("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            logger.info("=> no checkpoint found at '{}'".format(args.resume))
 
-    mAP = test(test_loader, model, args.classes, save_vis=True,
-               has_gt=phase != 'test',
-               output_dir='pred_{:03d}'.format(start_epoch))
-    print('mAP: ', mAP)
+    out_dir = '{}_{:03d}_{}'.format(args.arch, start_epoch, phase)
+    if len(args.test_suffix) > 0:
+        out_dir += '_' + args.test_suffix
+    if args.ms:
+        out_dir += '_ms'
+
+    if args.ms:
+        mAP = test_ms(test_loader, model, args.classes, save_vis=True,
+                      has_gt=phase != 'test' or args.with_gt,
+                      output_dir=out_dir,
+                      scales=scales)
+    else:
+        mAP = test(test_loader, model, args.classes, save_vis=True,
+                   has_gt=phase != 'test' or args.with_gt, output_dir=out_dir)
+    logger.info('mAP: %f', mAP)
 
 
 def parse_args():
@@ -516,6 +681,7 @@ def parse_args():
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
+    parser.add_argument('--lr-mode', type=str, default='step')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -531,6 +697,13 @@ def parse_args():
     parser.add_argument('-j', '--workers', type=int, default=8)
     parser.add_argument('--load-release', dest='load_rel', default=None)
     parser.add_argument('--phase', default='val')
+    parser.add_argument('--random-scale', default=0, type=float)
+    parser.add_argument('--random-rotate', default=0, type=int)
+    parser.add_argument('--bn-sync', action='store_true')
+    parser.add_argument('--ms', action='store_true',
+                        help='Turn on multi-scale testing')
+    parser.add_argument('--with-gt', action='store_true')
+    parser.add_argument('--test-suffix', default='', type=str)
     args = parser.parse_args()
 
     assert args.data_dir is not None
@@ -538,6 +711,9 @@ def parse_args():
 
     print(' '.join(sys.argv))
     print(args)
+
+    if args.bn_sync:
+        drn.BatchNorm = batchnormsync.BatchNormSync
 
     return args
 
@@ -548,6 +724,7 @@ def main():
         train_seg(args)
     elif args.cmd == 'test':
         test_seg(args)
+
 
 if __name__ == '__main__':
     main()

@@ -90,6 +90,8 @@ Comparison of mIoU on Cityscapes and numbers of parameters.
 | DRN-D-22 | 68.0% | 16.4M |
 | DRN-D-38 | 71.4% | 26.5M |
 
+DRN-D-105 gets 76.3% mIoU on Cityscapes testing set with multi-scale testing, poly learning rate and data augmentation with random rotation and scaling in training. Full results are ![here](datasets/cityscapes/drn-d-105.csv).
+
 ### Prepare Data
 
 The segmentation image data folder is supposed to contain following image lists with names below:
@@ -155,6 +157,17 @@ python3 segment.py train -d <data_folder> -c <category_number> -s 896 \
 
 `category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number)`. Invalid pixels can be labeled as 255 and they will be ignored in training and evaluation.
 
+If you want to train drn_d_105 to achieve best results on cityscapes dataset, you need to turn on data augmentation and use poly learning rate:
+
+```
+python3 segment.py train -d <data_folder> -c 19 -s 840 --arch drn_d_105 --random-scale 2 --random-rotate 10 --batch-size 16 --epochs 500 --lr 0.01 --momentum 0.9 -j 16 --lr-mode poly --bn-sync
+```
+
+Note:
+
+ - If you use 8 GPUs for 16 crops per batch, the memory for each GPU is more than 12GB. If you don't have enough GPU memory, you can try smaller batch size or crop size. Smaller crop size usually hurts the performance more.
+ - Batch normalization synchronization across multiple GPUs is necessary to train very deep convolutional networks for semantic segmentation. We provide an implementation as a pytorch extenstion in `lib/`. However, it is not for the faint-hearted to build from scratch, although an Makefile is provided. So a built binary library for 64-bit Ubuntu is provided. It is tested on Ubuntu 16.04. Also remember to add `lib/` to your `PYTHONPATH`.
+
 ### Testing
 
 Evaluate models on testing set or any images without ground truth labels using our related pretrained model:
@@ -169,4 +182,11 @@ If you want to evaluate a checkpoint from your own training, use `--resume` inst
 ```
 python3 segment.py test -d <data_folder> -c <category_number> --arch drn_d_22 \
     --resume <model_path> --phase test --batch-size 1
+```
+
+You can also turn on multi-scale testing for better results by adding `--ms`:
+
+```
+python3 segment.py test -d <data_folder> -c <category_number> --arch drn_d_105 \
+    --resume <model_path> --phase val --batch-size 1 --ms
 ```
