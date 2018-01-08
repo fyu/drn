@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-CITYSCAPE_PALLETE = np.asarray([
+CITYSCAPE_PALETTE = np.asarray([
     [128, 64, 128],
     [244, 35, 232],
     [70, 70, 70],
@@ -495,7 +495,7 @@ def test(eval_data_loader, model, num_classes,
         if save_vis:
             save_output_images(pred, name, output_dir)
             save_colorful_images(pred, name, output_dir + '_color',
-                                 CITYSCAPE_PALLETE)
+                                 CITYSCAPE_PALETTE)
         if has_gt:
             label = label.numpy()
             hist += fast_hist(pred.flatten(), label.flatten(), num_classes)
@@ -581,7 +581,7 @@ def test_ms(eval_data_loader, model, num_classes, scales,
         if save_vis:
             save_output_images(pred, name, output_dir)
             save_colorful_images(pred, name, output_dir + '_color',
-                                 CITYSCAPE_PALLETE)
+                                 CITYSCAPE_PALETTE)
         if has_gt:
             label = label.numpy()
             hist += fast_hist(pred.flatten(), label.flatten(), num_classes)
