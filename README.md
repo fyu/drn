@@ -20,6 +20,12 @@ If you find this code useful for your publications, please consider citing
 }
 ```
 
+## Code Highlights
+
+- Pytorch based image classification and semantic image segmentation.
+- High-resolution class activiation maps for state-of-the-art weakly supervised object localization.
+- [DRN-D-105](#semantic-image-segmentataion) gets 76.3% mIoU on Cityscapes with only fine training annotation and no context module.
+
 ## Image Classification
 
 Image classification is meant to be a controlled study to understand the role of high resolution feature maps in image classification and the class activations rising from it. Based on the investigation, we are able to design more efficient networks for learning high-resolution image representation. They have practical usage in semantic image segmentation, as detailed in [image segmentation section](#semantic-image-segmentataion).
