@@ -23,6 +23,7 @@ If you find this code useful for your publications, please consider citing
 ## Code Highlights
 
 - Pytorch based image classification and semantic image segmentation.
+- BatchNorm synchronization across multipe GPUs.
 - High-resolution class activiation maps for state-of-the-art weakly supervised object localization.
 - [DRN-D-105](#semantic-image-segmentataion) gets 76.3% mIoU on Cityscapes with only fine training annotation and no context module.
 
