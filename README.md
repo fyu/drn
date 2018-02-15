@@ -22,6 +22,7 @@ If you find this code useful for your publications, please consider citing
 
 ## Code Highlights
 
+- The pretrained model can be loaded using Pytorch model zoo api. [Example here].(https://github.com/fyu/drn/blob/master/drn.py#L264)
 - Pytorch based image classification and semantic image segmentation.
 - BatchNorm synchronization across multipe GPUs.
 - High-resolution class activiation maps for state-of-the-art weakly supervised object localization.
