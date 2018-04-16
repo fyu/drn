@@ -6,7 +6,6 @@ import json
 import logging
 import math
 import os
-import pdb
 from os.path import exists, join, split
 import threading
 
@@ -59,6 +58,12 @@ CITYSCAPE_PALETTE = np.asarray([
     [0, 0, 230],
     [119, 11, 32],
     [0, 0, 0]], dtype=np.uint8)
+
+
+TRIPLET_PALETTE = np.asarray([
+    [0, 0, 0, 255],
+    [217, 83, 79, 255],
+    [91, 192, 222, 255]], dtype=np.uint8)
 
 
 def fill_up_weights(up):
@@ -130,7 +135,8 @@ class SegList(torch.utils.data.Dataset):
     def __getitem__(self, index):
         data = [Image.open(join(self.data_dir, self.image_list[index]))]
         if self.label_list is not None:
-            data.append(Image.open(join(self.data_dir, self.label_list[index])))
+            data.append(Image.open(
+                join(self.data_dir, self.label_list[index])))
         data = list(self.transforms(*data))
         if self.out_name:
             if self.label_list is None:
@@ -167,7 +173,8 @@ class SegListMS(torch.utils.data.Dataset):
         data = [Image.open(join(self.data_dir, self.image_list[index]))]
         w, h = data[0].size
         if self.label_list is not None:
-            data.append(Image.open(join(self.data_dir, self.label_list[index])))
+            data.append(Image.open(
+                join(self.data_dir, self.label_list[index])))
         # data = list(self.transforms(*data))
         out_data = list(self.transforms(*data))
         ms_images = [self.transforms(data[0].resize((int(w * s), int(h * s)),
@@ -360,7 +367,8 @@ def train_seg(args):
               transforms.ToTensor(),
               normalize])
     train_loader = torch.utils.data.DataLoader(
-        SegList(data_dir, 'train', transforms.Compose(t)),
+        SegList(data_dir, 'train', transforms.Compose(t),
+                list_dir=args.list_dir),
         batch_size=batch_size, shuffle=True, num_workers=num_workers,
         pin_memory=True, drop_last=True
     )
@@ -369,7 +377,7 @@ def train_seg(args):
             transforms.RandomCrop(crop_size),
             transforms.ToTensor(),
             normalize,
-        ])),
+        ]), list_dir=args.list_dir),
         batch_size=batch_size, shuffle=False, num_workers=num_workers,
         pin_memory=True, drop_last=True
     )
@@ -420,13 +428,15 @@ def train_seg(args):
             'state_dict': model.state_dict(),
             'best_prec1': best_prec1,
         }, is_best, filename=checkpoint_path)
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 1 == 0:
             history_path = 'checkpoint_{:03d}.pth.tar'.format(epoch + 1)
             shutil.copyfile(checkpoint_path, history_path)
 
 
 def adjust_learning_rate(args, optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    """
+    Sets the learning rate to the initial LR decayed by 10 every 30 epochs
+    """
     if args.lr_mode == 'step':
         lr = args.lr * (0.1 ** (epoch // args.step))
     elif args.lr_mode == 'poly':
@@ -494,8 +504,9 @@ def test(eval_data_loader, model, num_classes,
         batch_time.update(time.time() - end)
         if save_vis:
             save_output_images(pred, name, output_dir)
-            save_colorful_images(pred, name, output_dir + '_color',
-                                 CITYSCAPE_PALETTE)
+            save_colorful_images(
+                pred, name, output_dir + '_color',
+                TRIPLET_PALETTE if num_classes == 3 else CITYSCAPE_PALETTE)
         if has_gt:
             label = label.numpy()
             hist += fast_hist(pred.flatten(), label.flatten(), num_classes)
@@ -621,12 +632,12 @@ def test_seg(args):
         dataset = SegListMS(data_dir, phase, transforms.Compose([
             transforms.ToTensor(),
             normalize,
-        ]), scales)
+        ]), scales, list_dir=args.list_dir)
     else:
         dataset = SegList(data_dir, phase, transforms.Compose([
             transforms.ToTensor(),
             normalize,
-        ]), out_name=True)
+        ]), list_dir=args.list_dir, out_name=True)
     test_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size, shuffle=False, num_workers=num_workers,
@@ -670,7 +681,10 @@ def parse_args():
     # Training settings
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('cmd', choices=['train', 'test'])
-    parser.add_argument('-d', '--data-dir', default=None)
+    parser.add_argument('-d', '--data-dir', default=None, required=True)
+    parser.add_argument('-l', '--list-dir', default=None,
+                        help='List dir to look for train_images.txt etc. '
+                             'It is the same with --data-dir if not set.')
     parser.add_argument('-c', '--classes', default=0, type=int)
     parser.add_argument('-s', '--crop-size', default=0, type=int)
     parser.add_argument('--step', type=int, default=200)
@@ -706,7 +720,6 @@ def parse_args():
     parser.add_argument('--test-suffix', default='', type=str)
     args = parser.parse_args()
 
-    assert args.data_dir is not None
     assert args.classes > 0
 
     print(' '.join(sys.argv))

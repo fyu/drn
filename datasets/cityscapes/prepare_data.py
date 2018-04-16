@@ -1,6 +1,6 @@
 from collections import namedtuple
 import os
-from os.path import join, split
+from os.path import join, split, exists
 import sys
 
 import numpy as np

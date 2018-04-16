@@ -164,6 +164,38 @@ __global__ void BatchNormalizationUpdateOutputInference_kernel(
 }
 
 template <typename Dtype, typename Acctype, typename DeviceTensor1, typename DeviceTensor3>
+__global__ void BatchNormalizationMean_kernel(
+    const DeviceTensor3 input,
+    DeviceTensor1 out_mean) {
+  int plane = blockIdx.x;
+  int N = input.getSize(0) * input.getSize(2);
+
+  Acctype norm = Acctype(1) / N;
+  Acctype mean = reduce<Acctype>(SumOp<Dtype, Acctype, DeviceTensor3>(input), input, plane) * norm;
+  if (threadIdx.x == 0) {
+    out_mean[plane] = ScalarConvert<Acctype, Dtype>::to(mean);
+  }
+}
+
+
+template <typename Dtype, typename Acctype, typename DeviceTensor1, typename DeviceTensor3>
+__global__ void BatchNormalizationVar_kernel(
+    const DeviceTensor3 input,
+    const DeviceTensor1 in_mean,
+    DeviceTensor1 out_var) {
+  int plane = blockIdx.x;
+  int N = input.getSize(0) * input.getSize(2);
+
+  Acctype norm = Acctype(1) / N;
+  Acctype mean = ScalarConvert<Dtype, Acctype>::to(in_mean[plane]);
+
+  Acctype var = reduce<Acctype>(VarOp<Dtype, Acctype, DeviceTensor3>(mean, input), input, plane) * norm;
+  if (threadIdx.x == 0) {
+    out_var[plane] = ScalarConvert<Acctype, Dtype>::to(var);
+  }
+}
+
+template <typename Dtype, typename Acctype, typename DeviceTensor1, typename DeviceTensor3>
 __global__ void BatchNormalizationUpdateOutput_kernelhaha(
     const DeviceTensor3 input,
     DeviceTensor3 output,
@@ -174,7 +206,7 @@ __global__ void BatchNormalizationUpdateOutput_kernelhaha(
     DeviceTensor1 runningMean,
     DeviceTensor1 runningVar,
     DeviceTensor1 saveMean,
-    DeviceTensor1 saveStd) {
+    DeviceTensor1 saveVar) {
 
 
   int plane = blockIdx.x;
@@ -193,14 +225,14 @@ __global__ void BatchNormalizationUpdateOutput_kernelhaha(
   } */
 
   Acctype mean = ScalarConvert<Dtype, Acctype>::to(saveMean[plane]);
-   Acctype std = ScalarConvert<Dtype, Acctype>::to(saveStd[plane]);
-   Acctype invStd = 1 / (std + epsilon);
+   Acctype var = ScalarConvert<Dtype, Acctype>::to(saveVar[plane]);
+   Acctype invStd = 1 / sqrt(var + epsilon);
 
   // Save the mean, variance, and moving averages
   if (threadIdx.x == 0) {
     // Momentum based writeback
     // Acctype unbiasedVar = varN / (N - 1);
-    Acctype unbiasedVar = std * std * N / (N - 1);
+    Acctype unbiasedVar = var * N / (N - 1);
     // saveMean[plane] = ScalarConvert<Acctype, Dtype>::to(mean);
     // saveStd[plane] = ScalarConvert<Acctype, Dtype>::to(invStd);
     runningMean[plane] = ScalarConvert<Acctype, Dtype>::to((1 - momentum) * runningMean[plane] + momentum * mean);
@@ -218,6 +250,38 @@ __global__ void BatchNormalizationUpdateOutput_kernelhaha(
   }
 }
 
+
+template <typename Dtype, typename Acctype, typename DeviceTensor1, typename DeviceTensor3>
+__global__ void BatchNormalizationMeanGrad_kernel(
+    const DeviceTensor3 input,
+    const DeviceTensor3 gradOutput,
+    const DeviceTensor1 runningMean,
+    const DeviceTensor1 saveMean,
+    DeviceTensor1 gradOutputMean_all,
+    DeviceTensor1 dotP_all,
+    bool train) {
+  int plane = blockIdx.x;
+  int N = gradOutput.getSize(0) * gradOutput.getSize(2);
+
+  Acctype mean;
+  if (train) {
+    mean = ScalarConvert<Dtype, Acctype>::to(saveMean[plane]);
+  } else {
+    mean = ScalarConvert<Dtype, Acctype>::to(runningMean[plane]);
+  }
+
+  Acctype norm = Acctype(1) / N;
+  GradOp<Dtype, Acctype, DeviceTensor3> g(mean, input, gradOutput);
+  Float2<Dtype, Acctype> res = reduce<Float2<Dtype, Acctype>, GradOp<Dtype, Acctype, DeviceTensor3>, DeviceTensor3>(g, gradOutput, plane);
+  Acctype gradOutputMean = res.v1 * norm;
+  Acctype dotP = res.v2 * norm;
+
+  if (threadIdx.x == 0) {
+    gradOutputMean_all[plane] = ScalarConvert<Acctype, Dtype>::to(gradOutputMean);
+    dotP_all[plane] = ScalarConvert<Acctype, Dtype>::to(dotP);
+  }
+}
+
 template <typename Dtype, typename Acctype, typename DeviceTensor1, typename DeviceTensor3>
 __global__ void BatchNormalizationBackward_kernel(
     const DeviceTensor3 input,
@@ -231,7 +295,7 @@ __global__ void BatchNormalizationBackward_kernel(
     const DeviceTensor1 runningMean,
     const DeviceTensor1 runningVar,
     const DeviceTensor1 saveMean,
-    const DeviceTensor1 saveStd,
+    const DeviceTensor1 saveVar,
     bool train,
     Acctype scale,
     double eps) {
@@ -242,7 +306,7 @@ __global__ void BatchNormalizationBackward_kernel(
   Acctype mean, stdVal;
   if (train) {
     mean = ScalarConvert<Dtype, Acctype>::to(saveMean[plane]);
-    stdVal = 1 / (ScalarConvert<Dtype, Acctype>::to(saveStd[plane]) + eps);
+    stdVal = 1 / sqrt(ScalarConvert<Dtype, Acctype>::to(saveVar[plane]) + eps);
   } else {
     mean = ScalarConvert<Dtype, Acctype>::to(runningMean[plane]);
     stdVal = 1 / sqrt(runningVar[plane] + eps);

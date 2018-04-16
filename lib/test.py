@@ -18,8 +18,8 @@ batchnormsync.BatchNormSync.sync = True
 
 cuda = True
 batch_size = 3
-# input = torch.randn(3, 3, 4, 5).float()
-input = torch.Tensor(range(60 * batch_size)).float().resize_(batch_size, 3, 2, 2) / 100
+input = torch.randn(3, 3, 2, 2).float()
+# input = torch.Tensor(range(60 * batch_size)).float().resize_(batch_size, 3, 2, 2) / 100
 bn = batchnormsync.BatchNormSync(3, eps=0, affine=True,
                                  device_ids=None)
 bn2 = torch.nn.BatchNorm2d(3, eps=0, affine=False)
