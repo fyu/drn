@@ -34,7 +34,7 @@ class RandomCrop(object):
                 'reflection', image, top, bottom, left, right)
         w, h = image.size
         if w == tw and h == th:
-            return (img, label, *args)
+            return (image, label, *args)
 
         x1 = random.randint(0, w - tw)
         y1 = random.randint(0, h - th)
@@ -217,8 +217,9 @@ class PadImage(object):
 
     def __call__(self, image, label=None, *args):
         if self.fill == -1:
-            image = pad_image_reflection(
-                image, self.padding, self.padding, self.padding, self.padding)
+            image = pad_image(
+                'reflection', image,
+                self.padding, self.padding, self.padding, self.padding)
         else:
             image = ImageOps.expand(image, border=self.padding, fill=self.fill)
         return (image, label, *args)
