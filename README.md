@@ -164,7 +164,7 @@ The current segmentation models are trained on basic data augmentation (random c
 To train a new model, use
 ```
 python3 segment.py train -d <data_folder> -c <category_number> -s 896 \
-    --arch drn_d_22 --batch-size 16 --epochs 250 --lr 0.001 --momentum 0.99 \
+    --arch drn_d_22 --batch-size 16 --epochs 250 --lr 0.01 --momentum 0.99 \
     --step 100
 ```
 
