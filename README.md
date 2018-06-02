@@ -164,11 +164,11 @@ The current segmentation models are trained on basic data augmentation (random c
 To train a new model, use
 ```
 python3 segment.py train -d <data_folder> -c <category_number> -s 896 \
-    --arch drn_d_22 --batch-size 16 --epochs 250 --lr 0.01 --momentum 0.99 \
+    --arch drn_d_22 --batch-size 32 --epochs 250 --lr 0.01 --momentum 0.9 \
     --step 100
 ```
 
-`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number)`. Invalid pixels can be labeled as 255 and they will be ignored in training and evaluation.
+`category_number` is the number of categories in segmentation. It is 19 for Cityscapes and 11 for Camvid. The actual label maps should contain values in the range of `[0, category_number)`. Invalid pixels can be labeled as 255 and they will be ignored in training and evaluation. Depends on the batch size, lr and momentum can be 0.01/0.9 or 0.001/0.99.
 
 If you want to train drn_d_105 to achieve best results on cityscapes dataset, you need to turn on data augmentation and use poly learning rate:
 
