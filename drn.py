@@ -14,9 +14,9 @@ webroot = 'http://dl.yf.io/drn/'
 
 model_urls = {
     'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    # 'drn-c-26': webroot + 'drn_c_26-ddedf421.pth',
-    # 'drn-c-42': webroot + 'drn_c_42-9d336e8c.pth',
-    # 'drn-c-58': webroot + 'drn_c_58-0a53a92c.pth',
+    'drn-c-26': webroot + 'drn_c_26-ddedf421.pth',
+    'drn-c-42': webroot + 'drn_c_42-9d336e8c.pth',
+    'drn-c-58': webroot + 'drn_c_58-0a53a92c.pth',
     'drn-d-22': webroot + 'drn_d_22-4bd2f8ea.pth',
     'drn-d-38': webroot + 'drn_d_38-eebb45f0.pth',
     'drn-d-54': webroot + 'drn_d_54-0e0534ff.pth',
