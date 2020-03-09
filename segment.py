@@ -428,7 +428,7 @@ def train_seg(args):
             'state_dict': model.state_dict(),
             'best_prec1': best_prec1,
         }, is_best, filename=checkpoint_path)
-        if (epoch + 1) % 1 == 0:
+        if (epoch + 1) % args.save_iter == 0:
             history_path = os.path.join(args.save_path, 'checkpoint_{:03d}.pth.tar'.format(epoch + 1))
             shutil.copyfile(checkpoint_path, history_path)
 
@@ -710,6 +710,9 @@ def parse_args():
                         help='use pre-trained model')
     parser.add_argument('--save_path', default='', type=str, metavar='PATH',
                         help='output path for training checkpoints')
+    parser.add_argument('--save_iter', default=1, type=int,
+                        help='number of training iterations between'
+                             'checkpoint history saves')
     parser.add_argument('-j', '--workers', type=int, default=8)
     parser.add_argument('--load-release', dest='load_rel', default=None)
     parser.add_argument('--phase', default='val')
